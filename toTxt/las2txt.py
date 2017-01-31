@@ -19,7 +19,7 @@ def main():
     try:
         opts, args = getopt.getopt(sys.argv[1:], "i:o:", ["input=","output=","raw="])
     except getopt.GetoptError:
-        print "las.py -i <las file> -o <txt file>"
+        print "las.py -i <las file> -o <txt file> [--raw]"
         sys.exit(2)
     for opt, arg in opts:
         if opt in ("-i", "--input"):
