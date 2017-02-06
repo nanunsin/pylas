@@ -7,6 +7,28 @@ import laspy
 import sys, getopt
 import os, shutil
 
+class FilterData:
+    def __init__(self, data):
+        self.index = 0
+        self.data = data
+    def setIndex(self, index):
+        self.index = index
+    def getData(self):
+        return (self.data, self.data)
+
+class FilterReader:
+    def __init__(self, filename):
+        self.filename = filename
+        self.fstarttime = 0.0
+        self.fendtime = 0.0
+
+    def readfile(self):
+        ff = open(self.filename, "r")
+        times = ff.readline().split(" ")
+        self.fstarttime = times[0]
+        self.fendtime = times[1]
+        ff.close()
+
 class TILAS:
     def __init__(self, argv):
         # files
@@ -74,13 +96,7 @@ class TILAS:
         return (point * scale + offset)
 
     def func1(self, val1, val2):
-
         return (10, 10, 10)
-
-    def OutputPrint(self):
-        #f = laspy.file.File(self.outputfile, mode='r')
-        #f.close()
-        pass
 
     def Run(self):
         #file Copy
@@ -158,6 +174,5 @@ if __name__ == "__main__":
     print sys.argv[1:]
     tilas = TILAS(sys.argv[1:])
     if tilas.IsUsable():
-        if tilas.Run():
-            tilas.OutputPrint()
+        tilas.Run()
 
