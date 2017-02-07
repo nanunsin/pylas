@@ -62,6 +62,11 @@ class TILAS:
         self.findIndex = []
         self.AlgoOffset = []
         self.AlgoCount = 0
+        # log count
+        self.logCount = 0
+        self.logfileindex = 0
+        self.logbasename = ''
+        self.logextname = ''
 
     def parseArgs(self, argv):
         try:
@@ -78,6 +83,7 @@ class TILAS:
                 self.filterfile = arg
             elif opt in ("-l", "--log"):
                 self.logfile = arg
+                self.logbasename, self.logextname = os.path.splitext(self.logfile)
 
         print "input file is", self.inputfile
         print "output file is", self.outputfile
@@ -115,8 +121,11 @@ class TILAS:
         return round((point * scale + offset),2)
 
     def func1(self, index, oridata):
-        if self.findIndex[self.AlgoCount] < index :
+        
+        if self.findIndex[self.AlgoCount + 1] < index :
+            print "[func1] change interval (index: %d)" % (index)
             self.AlgoCount += 1
+
         k = self.findIndex[self.AlgoCount] - index + 1
         num = self.AlgoOffset[self.AlgoCount][0]
         delta_xyz = self.AlgoOffset[self.AlgoCount][1:4]
@@ -161,19 +170,19 @@ class TILAS:
 
                 #get original data(for log)
                 cur_point = data['point']
-                
+
                 ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                              self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                              self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
 
                 if logic_count < len(self.filterReader.fdata):
                     logic = self.filterReader.fdata[logic_count]
-                
+
                 if ori_point[0] == logic[0] and ori_point[1] == logic[1] and ori_point[2] == logic[2]:
                 #if ori_point[0] == logic[0] and ori_point[1] == logic[1]:
                     print "find! (%d)[%f, %f, %f]" %(i+1, ori_point[0], ori_point[1], ori_point[2])
                     logic_count += 1
-                    self.findIndex.append(i+1)
+                    self.findIndex.append(i)
 
             else: # not find
                 if (modify_start) and (not modify_end):
@@ -188,9 +197,7 @@ class TILAS:
 
         lasfile.close()
 
-        print "[search] %d" % len(self.findIndex)
-        
-        print "Finish"
+        print "search Finish"
         return True
 
     def Run(self):
@@ -281,9 +288,9 @@ class TILAS:
                 delta_y = round(filterdata[4] - filterdata[1], 2)   # calc Y
                 delta_z = round(filterdata[5] - filterdata[2], 2)   # calc Z
                 delta_xyz = [delta_x, delta_y, delta_z]
-            
-            num = self.findIndex[i+1] - self.findIndex[i]   #point : 11 
-            
+
+            num = self.findIndex[i+1] - self.findIndex[i]   #points
+
             offset = [num] + delta_xyz + shift_xyz
             self.AlgoOffset.append(offset)
 
@@ -291,7 +298,12 @@ class TILAS:
 
             shift_xyz = delta_xyz
         print self.AlgoOffset
-    
+
+        if len(self.AlgoOffset)+1 != len(self.findIndex):
+            print "makeAlgorithm error(len)"
+            return False
+        return True
+
     def Run2(self):
         #file Copy
         print "File Copy"
@@ -306,11 +318,11 @@ class TILAS:
         # file read, write obj
         lasfile = laspy.file.File(self.outputfile, mode='rw') # for read/write(modify file)
         lfile = open(self.logfile, 'w')
-        
+
         hdr = lasfile.header
 
         # loop
-        print "start loop"
+        print "start loop (%.3f - %.3f)" % (lasfile.gps_time[self.findIndex[0]], lasfile.gps_time[self.findIndex[-1]])
         #for i, data in enumerate(lasfile.points):
         for i, data in enumerate(lasfile.points[self.findIndex[0]:self.findIndex[-1]]):
             cur_point = data['point']
@@ -320,7 +332,7 @@ class TILAS:
 
             #todo.
             point = (ori_point[0], ori_point[1], ori_point[2])
-            modv = self.func1(i, point)
+            modv = self.func1(i + self.findIndex[0], point)
 
             # reset X, Y, Z
             data['point']['X'] = (modv[0] - hdr.offset[0]) / hdr.scale[0]
@@ -336,6 +348,15 @@ class TILAS:
                                                                     self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                                                                     self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
             lfile.write(ldata)
+            self.logCount += 1
+            if self.logCount >= 1000000:
+                lfile.close()
+
+                self.logfile = "%s(%d)%s" % (self.logbasename, self.logfileindex, self.logextname)
+                self.logCount = 0
+                self.logfileindex += 1
+                lfile = open(self.logfile,"w")
+
             #logging end
         lasfile.close()
         lfile.close()
@@ -348,6 +369,8 @@ if __name__ == "__main__":
     tilas = TILAS(sys.argv[1:])
     if tilas.IsUsable():
         tilas.Search()
-        tilas.makeAlgorithm()
-        tilas.Run2()
+        if not tilas.makeAlgorithm():
+            print "makeAlgorithm() failed"
+        else:
+            tilas.Run2()
 
