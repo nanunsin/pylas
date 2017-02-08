@@ -6,6 +6,7 @@ to use LAS library
 import laspy
 import sys, getopt
 import os, shutil
+import numpy as np
 
 class FilterReader:
     def __init__(self, filename):
@@ -62,11 +63,15 @@ class TILAS:
         self.findIndex = []
         self.AlgoOffset = []
         self.AlgoCount = 0
+        
         # log count
         self.logCount = 0
         self.logfileindex = 0
         self.logbasename = ''
         self.logextname = ''
+
+        # Algorithm
+        self.k = 0
 
         # Set member var
         self.parseArgs(argv)
@@ -128,15 +133,16 @@ class TILAS:
         if self.findIndex[self.AlgoCount + 1] < index :
             print "[func1] change interval (index: %d)" % (index)
             self.AlgoCount += 1
+            self.k = 0
 
-        k = self.findIndex[self.AlgoCount] - index + 1
+        self.k += 1
         num = self.AlgoOffset[self.AlgoCount][0]
         delta_xyz = self.AlgoOffset[self.AlgoCount][1:4]
         shift_xyz = self.AlgoOffset[self.AlgoCount][4:7]
 
-        ret_x = oridata[0] + shift_xyz[0] + ((delta_xyz[0] - shift_xyz[0])/num) *k
-        ret_y = oridata[1] + shift_xyz[1] + ((delta_xyz[1] - shift_xyz[1])/num) *k
-        ret_z = oridata[2] + shift_xyz[2] + ((delta_xyz[2] - shift_xyz[2])/num) *k
+        ret_x = oridata[0] + shift_xyz[0] + ((delta_xyz[0] - shift_xyz[0])/num) * self.k
+        ret_y = oridata[1] + shift_xyz[1] + ((delta_xyz[1] - shift_xyz[1])/num) * self.k
+        ret_z = oridata[2] + shift_xyz[2] + ((delta_xyz[2] - shift_xyz[2])/num) * self.k
 
         return (ret_x, ret_y, ret_z)
 
@@ -164,7 +170,6 @@ class TILAS:
                 if not modify_start:
                     modify_start = True
                     self.findIndex.append(i)
-                    print "[Find start point]"
                     cur_point = data['point']
                     ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                                  self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
@@ -191,7 +196,6 @@ class TILAS:
                 if (modify_start) and (not modify_end):
                     modify_end = True
                     self.findIndex.append(i)
-                    print "[Find end point]"
                     cur_point = data['point']
                     ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                                  self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
@@ -300,7 +304,6 @@ class TILAS:
             print offset
 
             shift_xyz = delta_xyz
-        print self.AlgoOffset
 
         if len(self.AlgoOffset)+1 != len(self.findIndex):
             print "makeAlgorithm error(len)"
