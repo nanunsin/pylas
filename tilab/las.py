@@ -201,6 +201,7 @@ class TILAS:
                                  self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                                  self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
                     print "find! (%d)[%f, %f, %f]" %(i, ori_point[0], ori_point[1], ori_point[2])
+                    break
 
         lasfile.close()
 
