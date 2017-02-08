@@ -53,11 +53,11 @@ class TILAS:
         self.outputfile = ''
         self.filterfile = ''
         self.logfile = ''
+
         # filter
         self.fstarttime = 0.0
         self.fendtime = 0.0
-        # Set member var
-        self.parseArgs(argv)
+        
         # listup
         self.findIndex = []
         self.AlgoOffset = []
@@ -67,6 +67,9 @@ class TILAS:
         self.logfileindex = 0
         self.logbasename = ''
         self.logextname = ''
+
+        # Set member var
+        self.parseArgs(argv)
 
     def parseArgs(self, argv):
         try:
@@ -362,7 +365,7 @@ class TILAS:
         lfile.close()
 
         print "Finish"
-        return True
+        return True       
 
 if __name__ == "__main__":
     print sys.argv[1:]
