@@ -1,0 +1,42 @@
+class TILogger:
+    def __init__(self):
+        self.use = False
+        self.index = 0
+        self.wcount = 0
+        self.interval = 10000
+        self.lastlog = ''
+
+    def SetFileName(self, filename):
+        if filename:
+            self.basename, self.extname = os.path.splitext(filename)
+            self.use = True
+            self.fileindex = 0
+    
+    def SetInterval(self, interval):
+        if interval > 0 :
+            self.interval = interval
+            self.wcount = interval
+    
+    def Write(self, data):
+        if self.use :
+            self.lastlog = data
+            if 0 == self.index:
+                filename = "%s(%d)%s"%(self.basename, self.fileindex, self.extname)
+                self.fileindex += 1
+                self.logf = open(filename, "w")
+            #endif
+            if self.interval == self.wcount:
+                
+                self.logf.write(data)
+                self.index += 1
+
+                if self.index > 1000000:
+                    self.index = 0
+                    self.logf.close()
+            
+            self.wcount -= 1
+
+    def __del__(self):
+        if self.fileindex > 0 and self.use :
+            self.logf.write(self.lastlog)
+            self.logf.close()
