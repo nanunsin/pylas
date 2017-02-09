@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 to use LAS library
  cmd> "pip install laspy"
@@ -6,15 +7,16 @@ to use LAS library
 import laspy
 import sys, getopt
 import os, shutil
-import numpy as np
 
+# Filter 파일에 있는 내용을 저장한다
 class FilterReader:
     def __init__(self, filename):
         self.filename = filename
         self.fstarttime = 0.0
         self.fendtime = 0.0
         self.fdata = []
-
+    
+    # 파일을 읽어서 시작시간, 마지막시간, 보정된 좌표를 저장한다.
     def readfile(self):
         ff = open(self.filename, "r")
         times = ff.readline().split(" ")
@@ -44,6 +46,7 @@ class FilterReader:
     def getFilterData(self):
         return self.fdata
 
+    # 저장된 시작 시간과 마지막 시간을 얻는다
     def getTimeInfo(self):
         return (self.fstarttime, self.fendtime)
 
@@ -76,6 +79,7 @@ class TILAS:
         # Set member var
         self.parseArgs(argv)
 
+    # 파라미터를 파싱한다
     def parseArgs(self, argv):
         try:
             opts, args = getopt.getopt(argv, "i:o:f:l:", ["input=","output=","filter=","log="])
@@ -107,7 +111,8 @@ class TILAS:
             print "Filter file is invaild file"
             return False
         return True
-
+    
+    # 동작에 필요한 요건들을 확인하여, 정상인 경우 True를 반환한다.
     def IsUsable(self):
         # check filter file
         if not self.getFilterData():
@@ -115,6 +120,7 @@ class TILAS:
             return False
         return os.path.exists(self.inputfile)
 
+    # 시간 정보로 변경해야하는 좌표인지 확인한다
     def isTarget(self, start, gps_time):
         result = False
         if not start:
@@ -128,6 +134,8 @@ class TILAS:
     def calcPoint(self, point, scale, offset):
         return round((point * scale + offset),2)
 
+    # 각 좌표에 미리 생성한 [num, delta_xyz, shift_xyz] 을 이용하여 
+    # 이 함수 호출전에 makeAlgorithm() 함수가 호출되어야 한다
     def func1(self, index, oridata):
         
         if self.findIndex[self.AlgoCount + 1] < index :
@@ -146,6 +154,7 @@ class TILAS:
 
         return (ret_x, ret_y, ret_z)
 
+    # 시작시간, 마지막 시간, 각 좌표의 정보로 index를 찾는다.
     def Search(self):
         # file read, write obj
         lasfile = laspy.file.File(self.inputfile, mode='r') # for read/write(modify file)
@@ -158,7 +167,7 @@ class TILAS:
         hdr = lasfile.header
 
         # loop
-        print "start loop"
+        print "[Search] start loop"
         logic_count = 0
         for i, data in enumerate(lasfile.points):
         #for data in lasfile.points:
@@ -174,7 +183,7 @@ class TILAS:
                     ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                                  self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                                  self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
-                    print "find! (%d)[%f, %f, %f]" %(i, ori_point[0], ori_point[1], ori_point[2])
+                    print "find! (%d) [%.3f, %.3f, %.3f]" %(i, ori_point[0], ori_point[1], ori_point[2])
 
                 #get original data(for log)
                 cur_point = data['point']
@@ -188,7 +197,7 @@ class TILAS:
 
                 if ori_point[0] == logic[0] and ori_point[1] == logic[1] and ori_point[2] == logic[2]:
                 #if ori_point[0] == logic[0] and ori_point[1] == logic[1]:
-                    print "find! (%d)[%f, %f, %f]" %(i+1, ori_point[0], ori_point[1], ori_point[2])
+                    print "find! (%d) [%.3f, %.3f, %.3f]" %(i+1, ori_point[0], ori_point[1], ori_point[2])
                     logic_count += 1
                     self.findIndex.append(i)
 
@@ -200,86 +209,16 @@ class TILAS:
                     ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                                  self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                                  self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
-                    print "find! (%d)[%f, %f, %f]" %(i, ori_point[0], ori_point[1], ori_point[2])
+                    print "find! (%d) [%.3f, %.3f, %.3f]" %(i, ori_point[0], ori_point[1], ori_point[2])
                     break
 
+        print "[Search] end loop"
         lasfile.close()
 
         print "search Finish"
         return True
 
-    def Run(self):
-        #file Copy
-        print "File Copy"
-        try:
-            shutil.copyfile(self.inputfile, self.outputfile)
-        except (IOError, os.error) as why:
-            print "src:{0}->dst:{1} error ({2})".format(self.inputfile, self.outputfile, str(why))
-
-        if not os.path.exists(self.outputfile):
-            return False
-
-        # file read, write obj
-        lasfile = laspy.file.File(self.outputfile, mode='rw') # for read/write(modify file)
-        lfile = open(self.logfile, 'w')
-        modify_start = False
-        modify_end = False
-
-        hdr = lasfile.header
-
-        # loop
-        print "start loop"
-        #for i, data in enumerate(lasfile.points):
-        for data in lasfile.points:
-
-            # filter find
-            gps_time = data['point']['gps_time']
-            find = self.isTarget(modify_start, gps_time)
-            if find:
-                if not modify_start:
-                    modify_start = True
-                    print "[Find start point]"
-                    print data['point']
-
-                #get original data(for log)
-                cur_point = data['point']
-                ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
-                             self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
-                             self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
-
-                #todo.
-                val1 = (1, 2, 3)
-                val2 = (3, 2, 1)
-                modv = self.func1(val1, val2)
-
-                # reset X, Y, Z
-                data['point']['X'] = (ori_point[0] + modv[0] - hdr.offset[0]) / hdr.scale[0]
-                data['point']['Y'] = (ori_point[1] + modv[1] - hdr.offset[1]) / hdr.scale[1]
-                data['point']['Z'] = (ori_point[2] + modv[2] - hdr.offset[2]) / hdr.scale[2]
-
-                # logging start
-                ldata = "[{0}] ({1},{2},{3}) -> ({4},{5},{6})\n".format(data['point']['gps_time'],
-                                                                        ori_point[0],
-                                                                        ori_point[1],
-                                                                        ori_point[2],
-                                                                        self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
-                                                                        self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
-                                                                        self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
-                lfile.write(ldata)
-                #logging end
-            else: # not find
-                if (modify_start) and (not modify_end):
-                    modify_end = True
-                    print "[Find end point]"
-                    print data['point']
-
-
-        lasfile.close()
-        lfile.close()
-
-        print "Finish"
-        return True
-
+    # num, delta_xyz, shift_xyz 를 생성한다
     def makeAlgorithm(self):
         if len(self.findIndex) != len(self.filterReader.fdata) + 2:
             print "error( %d != %d )" % (len(self.findIndex), len(self.filterReader.fdata)+2)
@@ -311,7 +250,8 @@ class TILAS:
             return False
         return True
 
-    def Run2(self):
+    # 알고리즘으로 뽑은 데이터를 적용한다.
+    def Run(self):
         #file Copy
         print "File Copy"
         try:
@@ -329,17 +269,16 @@ class TILAS:
         hdr = lasfile.header
 
         # loop
-        print "start loop (%.3f - %.3f)" % (lasfile.gps_time[self.findIndex[0]], lasfile.gps_time[self.findIndex[-1]])
-        #for i, data in enumerate(lasfile.points):
+        print "[Run] start loop (%.3f - %.3f)" % (lasfile.gps_time[self.findIndex[0]], lasfile.gps_time[self.findIndex[-1]])
+        # Search 함수를 통하여 찾은 Target만 수행한다
         for i, data in enumerate(lasfile.points[self.findIndex[0]:self.findIndex[-1]]):
             cur_point = data['point']
             ori_point = (self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                          self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                          self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
 
-            #todo.
-            point = (ori_point[0], ori_point[1], ori_point[2])
-            modv = self.func1(i + self.findIndex[0], point)
+            point = (ori_point[0], ori_point[1], ori_point[2])  # 원래 좌표
+            modv = self.func1(i + self.findIndex[0], point)     # 새로 받은 좌표
 
             # reset X, Y, Z
             data['point']['X'] = (modv[0] - hdr.offset[0]) / hdr.scale[0]
@@ -365,6 +304,7 @@ class TILAS:
                 lfile = open(self.logfile,"w")
 
             #logging end
+        print "[Run] end loop"
         lasfile.close()
         lfile.close()
 
@@ -379,5 +319,5 @@ if __name__ == "__main__":
         if not tilas.makeAlgorithm():
             print "makeAlgorithm() failed"
         else:
-            tilas.Run2()
+            tilas.Run()
 
