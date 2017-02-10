@@ -8,6 +8,54 @@ import laspy
 import sys, getopt
 import os, shutil
 
+class TILogger:
+    def __init__(self):
+        self.use = False
+        self.index = 0
+        self.wcount = 10000
+        self.interval = 10000
+        self.lastlog = ''
+        self.logf = None
+        self.fileindex = 0
+
+    def SetFileName(self, filename):
+        if filename:
+            self.basename, self.extname = os.path.splitext(filename)
+            self.use = True
+    
+    def SetInterval(self, interval):
+        if interval > 0 :
+            self.interval = interval
+            self.wcount = interval
+    
+    def Write(self, data):
+        if self.use :
+            self.lastlog = data
+            if 0 == self.index:
+                filename = "%s(%d)%s"%(self.basename, self.fileindex, self.extname)
+                self.fileindex += 1
+                self.logf = open(filename, "w")
+            #endif
+            if self.interval == self.wcount:
+                
+                self.logf.write(data)
+                self.index += 1
+
+                if self.index > 1000000:
+                    self.index = 0
+                    self.logf.close()
+            
+            if self.wcount > 1:
+                self.wcount -= 1
+            else:
+                self.wcount = self.interval
+
+    def __del__(self):
+        #if self.fileindex > 0 and self.use :
+        if self.logf != None:
+            self.logf.write(self.lastlog)
+            self.logf.close()
+
 # Filter 파일에 있는 내용을 저장한다
 class FilterReader:
     def __init__(self, filename):
