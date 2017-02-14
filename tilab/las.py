@@ -40,6 +40,7 @@ class TILogger:
                 
                 self.logf.write(data)
                 self.index += 1
+                self.lastlog = ''
 
                 if self.index > 1000000:
                     self.index = 0
@@ -50,11 +51,15 @@ class TILogger:
             else:
                 self.wcount = self.interval
 
-    def __del__(self):
-        #if self.fileindex > 0 and self.use :
-        if self.logf != None:
-            self.logf.write(self.lastlog)
+    def Close(self):
+        if self.fileindex > 0 and self.use :
+            if self.lastlog:
+                self.logf.write(self.lastlog)
             self.logf.close()
+            self.use = False
+
+    def __del__(self):
+        self.Close()
 
 # Filter 파일에 있는 내용을 저장한다
 class FilterReader:
@@ -115,11 +120,9 @@ class TILAS:
         self.AlgoOffset = []
         self.AlgoCount = 0
         
-        # log count
-        self.logCount = 0
-        self.logfileindex = 0
-        self.logbasename = ''
-        self.logextname = ''
+        # logger
+        self.logger = TILogger()
+        self.loginterval = 0
 
         # Algorithm
         self.k = 0
@@ -130,7 +133,7 @@ class TILAS:
     # 파라미터를 파싱한다
     def parseArgs(self, argv):
         try:
-            opts, args = getopt.getopt(argv, "i:o:f:l:", ["input=","output=","filter=","log="])
+            opts, args = getopt.getopt(argv, "i:o:f:l:", ["input=","output=","filter=","log=","interval="])
         except getopt.GetoptError:
             print "las.py -i <inputfile> -o <outputfile> -f <filter> -l <logfile>"
             sys.exit(2)
@@ -143,12 +146,13 @@ class TILAS:
                 self.filterfile = arg
             elif opt in ("-l", "--log"):
                 self.logfile = arg
-                self.logbasename, self.logextname = os.path.splitext(self.logfile)
+            elif opt == "--interval":
+                self.loginterval = int(arg)
 
         print "input file is", self.inputfile
         print "output file is", self.outputfile
         print "filter file is", self.filterfile
-        print "log file is", self.logfile
+        print "log file is %s(%d)" % (self.logfile, self.loginterval)
 
     def getFilterData(self):
         if not os.path.exists(self.filterfile):
@@ -301,7 +305,7 @@ class TILAS:
     # 알고리즘으로 뽑은 데이터를 적용한다.
     def Run(self):
         #file Copy
-        print "File Copy"
+        print "[Run]File Copy"
         try:
             shutil.copyfile(self.inputfile, self.outputfile)
         except (IOError, os.error) as why:
@@ -312,7 +316,9 @@ class TILAS:
 
         # file read, write obj
         lasfile = laspy.file.File(self.outputfile, mode='rw') # for read/write(modify file)
-        lfile = open(self.logfile, 'w')
+        logger = TILogger()
+        logger.SetFileName(self.logfile)
+        logger.SetInterval(self.loginterval)
 
         hdr = lasfile.header
 
@@ -341,20 +347,11 @@ class TILAS:
                                                                     self.calcPoint(cur_point['X'], hdr.scale[0], hdr.offset[0]),
                                                                     self.calcPoint(cur_point['Y'], hdr.scale[1], hdr.offset[1]),
                                                                     self.calcPoint(cur_point['Z'], hdr.scale[2], hdr.offset[2]))
-            lfile.write(ldata)
-            self.logCount += 1
-            if self.logCount >= 1000000:
-                lfile.close()
-
-                self.logfile = "%s(%d)%s" % (self.logbasename, self.logfileindex, self.logextname)
-                self.logCount = 0
-                self.logfileindex += 1
-                lfile = open(self.logfile,"w")
-
+            logger.Write(ldata)
             #logging end
         print "[Run] end loop"
         lasfile.close()
-        lfile.close()
+        logger.Close()
 
         print "Finish"
         return True       
